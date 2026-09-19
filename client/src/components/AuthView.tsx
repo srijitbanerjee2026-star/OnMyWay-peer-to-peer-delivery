@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
-import { ShieldCheck, Lock, Mail, User, Phone, Home, CreditCard, Hash, UploadCloud, CheckCircle, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, User, Phone, Home, Hash, UploadCloud, CheckCircle, AlertCircle, Zap } from 'lucide-react';
 
 interface AuthViewProps {
   onAuthSuccess?: () => void;
@@ -15,10 +15,19 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   const [phone, setPhone] = useState('');
   const [hostelBlock, setHostelBlock] = useState('Q');
   const [roomNumber, setRoomNumber] = useState('');
-  const [upiVpa, setUpiVpa] = useState('');
   const [idFile, setIdFile] = useState<File | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleDemoBypass = () => {
+    localStorage.setItem('demo_session', JSON.stringify({
+      id: 'demo-student-01',
+      email: 'srijit.2026@vitstudent.ac.in',
+      reg_number: '24BCE1000',
+      full_name: 'Srijit (VIT Student)'
+    }));
+    if (onAuthSuccess) onAuthSuccess();
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +48,6 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
           throw new Error('Please upload your Student ID Card photo.');
         }
 
-        // 1. Upload ID card to Supabase Storage bucket 'id-cards'
         const fileExt = idFile.name.split('.').pop();
         const fileName = `${Date.now()}_${regNumber.trim().toUpperCase()}.${fileExt}`;
         const filePath = `student-ids/${fileName}`;
@@ -54,7 +62,6 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
           .from('id-cards')
           .getPublicUrl(filePath);
 
-        // 2. Register user in Supabase Auth
         const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email: normalizedEmail,
           password
@@ -63,7 +70,6 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
         if (signUpError) throw signUpError;
         if (!authData.user) throw new Error('Failed to register user.');
 
-        // 3. Insert record into your custom 'users' table
         const { error: insertError } = await supabase.from('users').insert({
           id: authData.user.id,
           email: normalizedEmail,
@@ -72,7 +78,6 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
           phone: phone.trim(),
           hostel_block: hostelBlock.trim(),
           room_number: roomNumber.trim(),
-          upi_vpa: upiVpa.trim() || null,
           id_card_url: urlData.publicUrl,
           is_verified: false
         });
@@ -82,7 +87,6 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
         alert('Registration complete! Logging in...');
         if (onAuthSuccess) onAuthSuccess();
       } else {
-        // Standard Sign In
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: normalizedEmail,
           password
@@ -99,15 +103,51 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   };
 
   return (
-    <div style={{ padding: '24px 16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <div style={{ display: 'inline-flex', padding: 12, borderRadius: 50, background: '#eff6ff', color: '#2563eb', marginBottom: 8 }}>
-          <ShieldCheck size={28} />
+    <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      
+      {/* Fast-Track Evaluation Bypass */}
+      <div style={{
+        marginBottom: 18,
+        padding: '12px 14px',
+        background: '#eff6ff',
+        border: '2px dashed #2563eb',
+        borderRadius: 10,
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+          <Zap size={15} /> Evaluation Fast-Track
         </div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, margin: '4px 0', color: '#0f172a' }}>
+        <p style={{ fontSize: 11, color: '#3b82f6', margin: '4px 0 10px 0' }}>
+          Bypass email verification & rate limits to preview the verified student flow.
+        </p>
+        <button
+          type="button"
+          onClick={handleDemoBypass}
+          style={{
+            width: '100%',
+            padding: '9px',
+            background: '#2563eb',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
+          }}
+        >
+          Sign In as Verified Student (24BCE1000)
+        </button>
+      </div>
+
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'inline-flex', padding: 10, borderRadius: 50, background: '#eff6ff', color: '#2563eb', marginBottom: 6 }}>
+          <ShieldCheck size={24} />
+        </div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: '2px 0', color: '#0f172a' }}>
           {isSignUp ? 'VIT Student Registration' : 'Sign In to OnMyWay'}
         </h2>
-        <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
+        <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>
           {isSignUp ? 'Verify campus identity to claim & post deliveries' : 'Peer-to-peer campus delivery network'}
         </p>
       </div>
@@ -181,17 +221,6 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
                 required
               />
             </div>
-
-            <div style={{ position: 'relative' }}>
-              <CreditCard size={16} style={{ position: 'absolute', top: 12, left: 10, color: '#94a3b8' }} />
-              <input
-                type="text"
-                placeholder="UPI ID for Rider Payouts (e.g. name@okaxis)"
-                value={upiVpa}
-                onChange={e => setUpiVpa(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 10px 10px 34px', borderRadius: 6, border: '1px solid #cbd5e1' }}
-              />
-            </div>
           </>
         )}
 
@@ -260,7 +289,7 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
         </button>
       </form>
 
-      <div style={{ marginTop: 18, textAlign: 'center', fontSize: 13 }}>
+      <div style={{ marginTop: 16, textAlign: 'center', fontSize: 13 }}>
         <span style={{ color: '#64748b' }}>
           {isSignUp ? 'Already registered? ' : 'New student? '}
         </span>
